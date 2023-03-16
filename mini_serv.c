@@ -8,7 +8,7 @@ int		count = 0, max_fd = 0;
 int		ids[65536];
 char	*msgs[65536];
 
-fd_set	afds, rfds, wfds; // тип данных набора fd-шников
+fd_set	actual_set, read_set, write_set; // тип данных набора fd-шников
 char	buf_read[1001], buf_write[42];
 
 int		extract_message(char **buf, char **msg)	// copy function from main
@@ -67,7 +67,7 @@ void	fatal_error()
 void	notify_other(int author, char *str)
 {
 	for (int fd = 0; fd <= max_fd; fd++)
-		if (FD_ISSET(fd, &wfds) && fd != author)
+		if (FD_ISSET(fd, &write_set) && fd != author)
 			send(fd, str, strlen(str), 0); // отправлет сообщение в сокет, Если значение flags = 0 эквивалентен write
 }
 
@@ -76,7 +76,7 @@ void	register_client(int fd)
 	max_fd = fd > max_fd ? fd : max_fd;
 	ids[fd] = count++;
 	msgs[fd] = NULL;
-	FD_SET(fd, &afds);
+	FD_SET(fd, &actual_set);
 	sprintf(buf_write, "server: client %d just arrived\n", ids[fd]);
 	notify_other(fd, buf_write);
 }
@@ -86,7 +86,7 @@ void	remove_client(int fd)
 	sprintf(buf_write, "server: client %d just left\n", ids[fd]);
 	notify_other(fd, buf_write);
 	free(msgs[fd]);
-	FD_CLR(fd, &afds); // удаляет файловый дескриптор из набора
+	FD_CLR(fd, &actual_set); // удаляет файловый дескриптор из набора
 	close(fd);
 }
 
@@ -107,7 +107,7 @@ int		create_socket()
 	max_fd = socket(AF_INET, SOCK_STREAM, 0); // copy line from main 61  Создает сокет и возвращает дескриптор сокета, AF_INET - для IPv4, SOCK_STREAM - для TCP
 	if (max_fd < 0)
 		fatal_error();
-	FD_SET(max_fd, &afds);
+	FD_SET(max_fd, &actual_set);
 	return max_fd;
 }
 
@@ -119,7 +119,7 @@ int		main(int ac, char **av)
 		exit(1);
 	}
 
-	FD_ZERO(&afds);  // сначала очищаем набор fd-шников
+	FD_ZERO(&actual_set);  // сначала очищаем набор fd-шников
 	int sockfd = create_socket(); // моя функ создаем слушающий сокет
 
 	struct sockaddr_in servaddr;		// copy line 58 from main (without cli) структура для сокетов
@@ -136,14 +136,14 @@ int		main(int ac, char **av)
 
 	while (1)
 	{
-		rfds = wfds = afds;
+		read_set = write_set = actual_set;
 
-		if (select(max_fd + 1, &rfds, &wfds, NULL, NULL) < 0) // мониторинг сетевых событий. ждет изменения статуса
+		if (select(max_fd + 1, &read_set, &write_set, NULL, NULL) < 0) // мониторинг сетевых событий. ждет изменения статуса
 			fatal_error();
 
 		for (int fd = 0; fd <= max_fd; fd++)
 		{
-			if (!FD_ISSET(fd, &rfds)) // FD_ISSET проверяет существует ли еще fd в наборе rfds. если нет то вернет 0
+			if (!FD_ISSET(fd, &read_set)) // FD_ISSET проверяет существует ли еще fd в наборе read_set. если нет то вернет 0
 				continue;
 			if (fd == sockfd)
 			{
