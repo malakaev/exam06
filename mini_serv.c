@@ -64,7 +64,7 @@ void	fatal_error()
 	exit(1);
 }
 
-void	notify_other(int author, char *str)
+void	notify_other(int author, char *str) // отправляет сообщение всем текущим (актуальным) клиентам, кроме отправителя или того о ком сообщается
 {
 	for (int fd = 0; fd <= max_fd; fd++)
 		if (FD_ISSET(fd, &write_set) && fd != author)
@@ -86,7 +86,7 @@ void	remove_client(int fd)
 	sprintf(buf_write, "server: client %d just left\n", ids[fd]);
 	notify_other(fd, buf_write);
 	free(msgs[fd]);
-	FD_CLR(fd, &actual_set); // удаляет файловый дескриптор из набора
+	FD_CLR(fd, &actual_set); // удаляет файловый дискриптор из набора
 	close(fd);
 }
 
